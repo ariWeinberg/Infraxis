@@ -177,5 +177,5 @@ This checklist is the implementation ledger for `planBook.md`. Items are checked
 - [x] Run whitespace validation with `git diff --check`.
 - [ ] Validate Helm charts with Helm: Helm is not installed in this environment.
 - [ ] Reconcile Argo Applications on a live cluster: no Kubernetes/Argo cluster is configured.
-- [ ] Publish GitHub Pages: workflow is committed, but repository Pages settings and the GitHub Actions run require remote repository administration.
+- [x] Enable GitHub Pages with the GitHub Actions source; first successful workflow run remains pending.
 - [ ] Verify upstream chart pins at deployment time; chart versions are intentionally reviewed again during promotion.
