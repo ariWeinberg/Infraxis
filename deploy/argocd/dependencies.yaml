@@ -1,0 +1,132 @@
+# Argo CD owns this dependency graph. Replace example repository URLs and
+# create referenced secrets through the cluster secret manager.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: cloudspace
+  namespace: argocd
+spec:
+  sourceRepos:
+    - https://charts.goauthentik.io
+    - https://charts.bitnami.com/bitnami
+    - https://permitio.github.io/opal-helm-chart
+    - https://git.example.invalid/cloudspace/platform.git
+  destinations:
+    - {namespace: cloudspace-auth, server: https://kubernetes.default.svc}
+    - {namespace: cloudspace-policy, server: https://kubernetes.default.svc}
+    - {namespace: cloudspace-data, server: https://kubernetes.default.svc}
+    - {namespace: cloudspace-system, server: https://kubernetes.default.svc}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudspace-postgresql
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "0"}
+spec:
+  project: cloudspace
+  source:
+    repoURL: https://charts.bitnami.com/bitnami
+    chart: postgresql
+    targetRevision: 17.1.0
+    helm:
+      values: |
+        auth:
+          database: cloudspace
+          username: cloudspace
+          existingSecret: cloudspace-postgresql
+        primary:
+          persistence: {enabled: true, size: 20Gi}
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {cpu: 1, memory: 1Gi}
+        metrics: {enabled: true}
+  destination: {server: https://kubernetes.default.svc, namespace: cloudspace-data}
+  syncPolicy: {automated: {prune: false, selfHeal: true}, syncOptions: [CreateNamespace=true]}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudspace-redis
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "0"}
+spec:
+  project: cloudspace
+  source:
+    repoURL: https://charts.bitnami.com/bitnami
+    chart: redis
+    targetRevision: 23.1.1
+    helm:
+      values: |
+        architecture: replication
+        auth: {existingSecret: cloudspace-redis}
+        master: {persistence: {enabled: true, size: 8Gi}}
+        replica: {replicaCount: 2}
+        metrics: {enabled: true}
+  destination: {server: https://kubernetes.default.svc, namespace: cloudspace-data}
+  syncPolicy: {automated: {prune: false, selfHeal: true}, syncOptions: [CreateNamespace=true]}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudspace-authentik
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "1"}
+spec:
+  project: cloudspace
+  source:
+    repoURL: https://charts.goauthentik.io
+    chart: authentik
+    targetRevision: 2025.8.4
+    helm:
+      values: |
+        authentik:
+          error_reporting: {enabled: false}
+          postgresql:
+            host: cloudspace-postgresql.cloudspace-data.svc.cluster.local
+            name: cloudspace
+            user: cloudspace
+          redis: {host: cloudspace-redis-master.cloudspace-data.svc.cluster.local}
+        postgresql: {enabled: false}
+        redis: {enabled: false}
+        global:
+          envFrom:
+            - secretRef: {name: cloudspace-authentik}
+  destination: {server: https://kubernetes.default.svc, namespace: cloudspace-auth}
+  syncPolicy: {automated: {prune: false, selfHeal: true}, syncOptions: [CreateNamespace=true]}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudspace-opa
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "2"}
+spec:
+  project: cloudspace
+  source: {repoURL: https://git.example.invalid/cloudspace/platform.git, targetRevision: main, path: deploy/helm/opa}
+  destination: {server: https://kubernetes.default.svc, namespace: cloudspace-policy}
+  syncPolicy: {automated: {prune: false, selfHeal: true}, syncOptions: [CreateNamespace=true]}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudspace-opal
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "2"}
+spec:
+  project: cloudspace
+  source:
+    repoURL: https://permitio.github.io/opal-helm-chart
+    chart: opal
+    targetRevision: 0.0.30
+    helm:
+      values: |
+        server:
+          replicas: 2
+          policyRepoUrl: https://git.example.invalid/cloudspace/platform-policies.git
+        client:
+          extraEnv:
+            - name: OPAL_POLICY_STORE_URL
+              value: http://cloudspace-opa.cloudspace-policy.svc.cluster.local:8181
+  destination: {server: https://kubernetes.default.svc, namespace: cloudspace-policy}
+  syncPolicy: {automated: {prune: false, selfHeal: true}, syncOptions: [CreateNamespace=true]}

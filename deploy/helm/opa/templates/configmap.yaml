@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.policyConfigMap }}
+data:
+  authorization.rego: |
+{{ .Files.Get "files/authorization.rego" | indent 4 }}
