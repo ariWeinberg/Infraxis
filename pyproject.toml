@@ -41,7 +41,7 @@ select = ["E", "F", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["apps/platform-api/tests"]
-pythonpath = ["apps/platform-api"]
+pythonpath = ["apps/platform-api", "sdk/python/src"]
 asyncio_mode = "auto"
 
 [tool.mypy]
