@@ -3,7 +3,12 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
-from .adapters import LocalAuthenticationAdapter, LocalAuthorizationAdapter, LocalBillingAdapter
+from .adapters import (
+    LocalAuthenticationAdapter,
+    LocalAuthorizationAdapter,
+    LocalBillingAdapter,
+    OIDCAuthenticationAdapter,
+)
 from .config import get_settings
 from .contracts import (
     AuthorizationCheckRequest,
@@ -37,7 +42,13 @@ async def current_principal(
 ) -> Principal:
     if not authorization or not authorization.startswith("Bearer "):
         raise ValueError("missing bearer token")
-    return await LocalAuthenticationAdapter(get_settings()).authenticate(authorization[7:])
+    config = get_settings()
+    adapter = (
+        OIDCAuthenticationAdapter(config)
+        if config.auth_mode == "oidc"
+        else LocalAuthenticationAdapter(config)
+    )
+    return await adapter.authenticate(authorization[7:])
 
 
 @app.get("/health/live")

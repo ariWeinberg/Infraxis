@@ -1,5 +1,12 @@
+import json
+
+import httpx
+import jwt
 import pytest
+from app.adapters import OIDCAuthenticationAdapter
+from app.config import Settings
 from app.main import app
+from cryptography.hazmat.primitives.asymmetric import rsa
 from httpx import ASGITransport, AsyncClient
 
 
@@ -54,3 +61,91 @@ async def test_billing_does_not_expose_provider_objects(client: AsyncClient) -> 
     )
     assert response.status_code == 200
     assert response.json()["account"]["id"].startswith("billacct_")
+
+
+def _key_pair(kid: str):
+    private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(private.public_key()))
+    public["kid"] = kid
+    return private, public
+
+
+@pytest.mark.asyncio
+async def test_oidc_validates_claims_and_normalizes_principal() -> None:
+    private, public = _key_pair("key-1")
+    settings = Settings(
+        auth_mode="oidc",
+        oidc_issuer="https://auth.example.test/",
+        oidc_audience="cloudspace",
+        oidc_jwks_url="https://auth.example.test/jwks",
+    )
+    transport = httpx.MockTransport(lambda _: httpx.Response(200, json={"keys": [public]}))
+    async with httpx.AsyncClient(transport=transport) as client:
+        adapter = OIDCAuthenticationAdapter(settings, client)
+        token = jwt.encode(
+            {
+                "sub": "user-1",
+                "iss": settings.oidc_issuer,
+                "aud": settings.oidc_audience,
+                "exp": 4102444800,
+                "tenant_id": "tenant-a",
+            },
+            private,
+            algorithm="RS256",
+            headers={"kid": "key-1"},
+        )
+        principal = await adapter.authenticate(token)
+    assert principal.id == "user-1"
+    assert principal.tenant_id == "tenant-a"
+
+
+@pytest.mark.asyncio
+async def test_oidc_rejects_wrong_audience_and_expired_tokens() -> None:
+    private, public = _key_pair("key-1")
+    settings = Settings(
+        auth_mode="oidc",
+        oidc_issuer="https://auth.example.test/",
+        oidc_audience="cloudspace",
+        oidc_jwks_url="https://auth.example.test/jwks",
+    )
+    transport = httpx.MockTransport(lambda _: httpx.Response(200, json={"keys": [public]}))
+    async with httpx.AsyncClient(transport=transport) as client:
+        adapter = OIDCAuthenticationAdapter(settings, client)
+        for audience, expiry in (("wrong", 4102444800), ("cloudspace", 1)):
+            token = jwt.encode(
+                {"sub": "user-1", "iss": settings.oidc_issuer, "aud": audience, "exp": expiry},
+                private,
+                algorithm="RS256",
+                headers={"kid": "key-1"},
+            )
+            with pytest.raises(ValueError, match="invalid OIDC credentials"):
+                await adapter.authenticate(token)
+
+
+@pytest.mark.asyncio
+async def test_oidc_refreshes_jwks_when_a_key_rotates() -> None:
+    old_private, old_public = _key_pair("old")
+    new_private, new_public = _key_pair("new")
+    responses = iter(({"keys": [old_public]}, {"keys": [new_public]}))
+    settings = Settings(
+        auth_mode="oidc",
+        oidc_issuer="https://auth.example.test/",
+        oidc_audience="cloudspace",
+        oidc_jwks_url="https://auth.example.test/jwks",
+    )
+    transport = httpx.MockTransport(lambda _: httpx.Response(200, json=next(responses)))
+    async with httpx.AsyncClient(transport=transport) as client:
+        adapter = OIDCAuthenticationAdapter(settings, client)
+        for private, kid in ((old_private, "old"), (new_private, "new")):
+            token = jwt.encode(
+                {
+                    "sub": "user-1",
+                    "iss": settings.oidc_issuer,
+                    "aud": settings.oidc_audience,
+                    "exp": 4102444800,
+                },
+                private,
+                algorithm="RS256",
+                headers={"kid": kid},
+            )
+            assert (await adapter.authenticate(token)).id == "user-1"

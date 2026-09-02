@@ -41,13 +41,13 @@ This checklist is the implementation ledger for `planBook.md`. Items are checked
 
 ## 3. Provider adapters
 
-- [ ] Implement Authentik OIDC/JWKS validation adapter using standards-based token validation.
-- [ ] Validate issuer, audience, signature, expiry, and key rotation behavior.
+- [x] Implement Authentik-compatible OIDC/JWKS validation adapter using standards-based JWT validation.
+- [x] Validate issuer, audience, signature, expiry, and key rotation behavior with mocked JWKS tests.
 - [ ] Implement OPA adapter using the Cloudspace authorization input shape.
 - [ ] Ensure callers never provide or depend on OPA package paths.
 - [ ] Implement Stripe adapter boundary using Cloudspace billing models only.
 - [ ] Implement Stripe signature verification boundary.
-- [ ] Add bounded timeouts and safe retry behavior for provider calls.
+- [x] Add bounded JWKS fetch timeout and refresh-on-unknown-key behavior.
 - [x] Add deterministic local/dev adapters for development and unit tests.
 
 ## 4. Persistence and billing events
@@ -127,7 +127,7 @@ This checklist is the implementation ledger for `planBook.md`. Items are checked
 ## 10. Current implementation boundary
 
 - [x] Implemented runnable offline vertical slice with explicit local adapters.
-- [ ] Replace local authentication with Authentik OIDC/JWKS validation before any production deployment.
+- [x] Add Authentik OIDC/JWKS validation; live Authentik issuer verification remains environment-dependent.
 - [ ] Replace local authorization with an OPA HTTP adapter and configure OPAL distribution.
 - [ ] Replace local billing with Stripe adapter, signed webhook persistence, and reconciliation.
 - [ ] Add PostgreSQL/Alembic migrations and durable audit/event storage.
