@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     environment: str = "dev"
     service_name: str = "platform-api"
     auth_mode: str = "local"
+    authorization_mode: str = "local"
     database_url: str = "sqlite+aiosqlite:///./cloudspace.db"
     oidc_issuer: str = "https://authentik.example.invalid/application/o/cloudspace/"
     oidc_audience: str = "cloudspace-platform"

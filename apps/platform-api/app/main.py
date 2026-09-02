@@ -1,3 +1,4 @@
+from functools import lru_cache
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
@@ -8,6 +9,7 @@ from .adapters import (
     LocalAuthorizationAdapter,
     LocalBillingAdapter,
     OIDCAuthenticationAdapter,
+    OPAAuthorizationAdapter,
 )
 from .config import get_settings
 from .contracts import (
@@ -20,9 +22,19 @@ from .contracts import (
     PrincipalResponse,
     SubscriptionResponse,
 )
-from .domain import AuthorizationRequest, Principal
+from .domain import AuthenticationPort, AuthorizationRequest, AuthorizationUnavailable, Principal
 
 app = FastAPI(title="Cloudspace Platform API", version="1.0.0")
+
+
+@lru_cache
+def authentication_adapter() -> AuthenticationPort:
+    config = get_settings()
+    return (
+        OIDCAuthenticationAdapter(config)
+        if config.auth_mode == "oidc"
+        else LocalAuthenticationAdapter(config)
+    )
 
 
 @app.exception_handler(ValueError)
@@ -37,18 +49,24 @@ async def value_error_handler(request: Request, _: ValueError):
     return JSONResponse(status_code=status.HTTP_401_UNAUTHORIZED, content=body.model_dump())
 
 
+@app.exception_handler(AuthorizationUnavailable)
+async def authorization_unavailable_handler(request: Request, _: AuthorizationUnavailable):
+    body = ErrorResponse(
+        error={
+            "code": "SERVICE_UNAVAILABLE",
+            "message": "Authorization is temporarily unavailable.",
+            "request_id": getattr(request.state, "request_id", f"req_{uuid4().hex}"),
+        }
+    )
+    return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=body.model_dump())
+
+
 async def current_principal(
     authorization: str | None = Header(default=None),
 ) -> Principal:
     if not authorization or not authorization.startswith("Bearer "):
         raise ValueError("missing bearer token")
-    config = get_settings()
-    adapter = (
-        OIDCAuthenticationAdapter(config)
-        if config.auth_mode == "oidc"
-        else LocalAuthenticationAdapter(config)
-    )
-    return await adapter.authenticate(authorization[7:])
+    return await authentication_adapter().authenticate(authorization[7:])
 
 
 @app.get("/health/live")
@@ -77,7 +95,13 @@ async def authorization_check(
 ) -> AuthorizationDecisionResponse:
     if request.principal.id != principal.id:
         raise HTTPException(status_code=403, detail="principal mismatch")
-    decision = await LocalAuthorizationAdapter().authorize(
+    config = get_settings()
+    adapter = (
+        OPAAuthorizationAdapter(config)
+        if config.authorization_mode == "opa"
+        else LocalAuthorizationAdapter()
+    )
+    decision = await adapter.authorize(
         AuthorizationRequest(
             principal=principal,
             action=request.action,

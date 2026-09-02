@@ -12,6 +12,7 @@ from .domain import (
     AuthorizationDecision,
     AuthorizationPort,
     AuthorizationRequest,
+    AuthorizationUnavailable,
     BillingAccount,
     BillingPort,
     Principal,
@@ -126,6 +127,54 @@ class LocalAuthorizationAdapter(AuthorizationPort):
         )
 
 
+class OPAAuthorizationAdapter(AuthorizationPort):
+    """Translates the Cloudspace decision contract to OPA's private data API."""
+
+    def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None) -> None:
+        self.settings = settings
+        self._client = client
+
+    async def authorize(self, request: AuthorizationRequest) -> AuthorizationDecision:
+        payload = {
+            "input": {
+                "principal": {
+                    "id": request.principal.id,
+                    "type": request.principal.type.value,
+                    "issuer": request.principal.issuer,
+                    "tenant_id": request.principal.tenant_id,
+                    "attributes": request.principal.attributes,
+                },
+                "action": request.action,
+                "resource": request.resource,
+                "context": request.context,
+            }
+        }
+        own_client = self._client is None
+        client = self._client or httpx.AsyncClient(timeout=self.settings.request_timeout_seconds)
+        try:
+            response = await client.post(
+                f"{self.settings.opa_url.rstrip('/')}/{self.settings.opa_decision_path.lstrip('/')}",
+                json=payload,
+            )
+            response.raise_for_status()
+            raw = response.json().get("result")
+            result = raw if isinstance(raw, dict) else {"allow": raw}
+            if not isinstance(result.get("allow"), bool):
+                raise AuthorizationUnavailable("OPA response did not contain a boolean decision")
+            return AuthorizationDecision(
+                decision=result["allow"],
+                decision_id=str(result.get("decision_id", f"dec_{uuid4().hex}")),
+                reason=str(
+                    result.get("reason", "policy_allow" if result["allow"] else "policy_deny")
+                ),
+                policy_revision=str(result.get("policy_revision", "unknown")),
+                obligations=result.get("obligations", []),
+            )
+        except (httpx.HTTPError, ValueError, TypeError, AuthorizationUnavailable) as exc:
+            raise AuthorizationUnavailable("OPA did not return a valid decision") from exc
+        finally:
+            if own_client:
+                await client.aclose()
 class LocalBillingAdapter(BillingPort):
     async def get_account(self, principal: Principal) -> BillingAccount | None:
         if principal.tenant_id is None:

@@ -34,6 +34,10 @@ class AuthorizationDecision:
     obligations: list[dict[str, Any]] = field(default_factory=list)
 
 
+class AuthorizationUnavailable(RuntimeError):
+    """The authorization evaluator could not produce a trustworthy decision."""
+
+
 @dataclass(frozen=True)
 class BillingAccount:
     id: str

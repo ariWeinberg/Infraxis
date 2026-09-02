@@ -3,8 +3,9 @@ import json
 import httpx
 import jwt
 import pytest
-from app.adapters import OIDCAuthenticationAdapter
+from app.adapters import OIDCAuthenticationAdapter, OPAAuthorizationAdapter
 from app.config import Settings
+from app.domain import AuthorizationRequest, Principal, PrincipalType
 from app.main import app
 from cryptography.hazmat.primitives.asymmetric import rsa
 from httpx import ASGITransport, AsyncClient
@@ -149,3 +150,42 @@ async def test_oidc_refreshes_jwks_when_a_key_rotates() -> None:
                 headers={"kid": kid},
             )
             assert (await adapter.authenticate(token)).id == "user-1"
+
+
+@pytest.mark.asyncio
+async def test_opa_adapter_translates_cloudspace_contract_and_reads_decision() -> None:
+    settings = Settings(
+        opa_url="http://opa.test",
+        opa_decision_path="v1/data/private/allow",
+    )
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.update(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "result": {
+                    "allow": True,
+                    "decision_id": "dec_opa",
+                    "reason": "entitled",
+                    "policy_revision": "git-abc",
+                    "obligations": [{"audit": True}],
+                }
+            },
+        )
+
+    principal = Principal("user-1", PrincipalType.USER, "issuer", "tenant-a")
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        decision = await OPAAuthorizationAdapter(settings, client).authorize(
+            AuthorizationRequest(
+                principal,
+                "billing.account.read",
+                "billing-account:1",
+                {"ip": "127.0.0.1"},
+            )
+        )
+    assert decision.decision is True
+    assert decision.policy_revision == "git-abc"
+    assert captured["input"]["action"] == "billing.account.read"
+    assert "private" not in captured["input"]
