@@ -1,0 +1,1 @@
+document.addEventListener("DOMContentLoaded",()=>{for(const code of document.querySelectorAll("pre code")){code.addEventListener("dblclick",()=>{const selection=window.getSelection();const range=document.createRange();range.selectNodeContents(code);selection.removeAllRanges();selection.addRange(range)})}});

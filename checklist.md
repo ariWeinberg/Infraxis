@@ -43,8 +43,8 @@ This checklist is the implementation ledger for `planBook.md`. Items are checked
 
 - [x] Implement Authentik-compatible OIDC/JWKS validation adapter using standards-based JWT validation.
 - [x] Validate issuer, audience, signature, expiry, and key rotation behavior with mocked JWKS tests.
-- [ ] Implement OPA adapter using the Cloudspace authorization input shape.
-- [ ] Ensure callers never provide or depend on OPA package paths.
+- [x] Implement OPA adapter using the Cloudspace authorization input shape.
+- [x] Ensure callers never provide or depend on OPA package paths.
 - [ ] Implement Stripe adapter boundary using Cloudspace billing models only.
 - [ ] Implement Stripe signature verification boundary.
 - [x] Add bounded JWKS fetch timeout and refresh-on-unknown-key behavior.
@@ -69,9 +69,9 @@ This checklist is the implementation ledger for `planBook.md`. Items are checked
 - [ ] Test allow, deny, missing/malformed input, cross-tenant, unknown action, and unavailable context cases.
 - [ ] Add OPA test and formatting commands to CI.
 - [ ] Add policy revision metadata and stale-policy health model.
-- [ ] Add OPAL topology/configuration without placing OPAL in the synchronous request path.
+- [x] Add OPAL topology/configuration without placing OPAL in the synchronous request path.
 - [ ] Add policy-data publication flow from local billing state to authorization data.
-- [ ] Document propagation, rollback, stale-data, and fail-closed behavior.
+- [x] Document propagation, rollback, stale-data, and fail-closed behavior.
 
 ## 6. Frontend console
 
@@ -87,11 +87,11 @@ This checklist is the implementation ledger for `planBook.md`. Items are checked
 
 ## 7. Kubernetes, Helm, and GitOps
 
-- [ ] Add charts for `platform-api`, `console`, `authz-gateway` responsibility, and supporting configuration as justified by process boundaries.
+- [x] Add charts for `platform-api`, `console`, and Cloudspace-managed OPA; authz gateway remains an API module per ADR-001.
 - [ ] Add secure defaults: non-root, dropped capabilities, read-only filesystem where practical, probes, resources, and immutable image references.
 - [ ] Add Services, ServiceAccounts, NetworkPolicies, PDBs, and observability annotations/configuration where applicable.
 - [ ] Add dev/staging/prod values without duplicating complete manifests.
-- [ ] Add Argo CD Applications/ApplicationSet strategy and sync/health policy.
+- [x] Add Argo CD Applications, AppProject, sync waves, and sync/health policy.
 - [ ] Keep CI free of direct production `kubectl apply` and `helm upgrade` deployment behavior.
 - [x] Add local dependency Compose path; live Kubernetes integration remains environment-dependent.
 - [ ] Validate charts with `helm lint`, `helm template`, and Kubernetes schema validation when tools are installed.
@@ -138,3 +138,44 @@ This checklist is the implementation ledger for `planBook.md`. Items are checked
 - [ ] Validate Helm charts and Argo CD resources against a real cluster/toolchain.
 - [ ] Add staging/prod values, secret injection, ingress, and environment-specific observability.
 - [ ] Provide final file map and honest verification status.
+
+## 11. Documentation deliverable
+
+- [x] Add documentation index and terminology/conventions.
+- [x] Document system scope and the explicit non-IAM boundary.
+- [x] Document component ownership, process boundaries, dependency direction, and request paths.
+- [x] Document versioned API compatibility rules and representative schemas.
+- [x] Document request IDs, tracing metadata, stable errors, and provider-leakage rules.
+- [x] Document Authentik OIDC flow, JWT validation, JWKS caching/rotation, logout, and failure behavior.
+- [x] Document authorization action grammar, resource identity, OPA boundary, OPAL distribution, staleness, and fail-closed semantics.
+- [x] Document billing domain ownership, Stripe provider references, webhook idempotency, reconciliation, and entitlement propagation.
+- [x] Document local setup, Compose limitations, test workflow, and change workflow.
+- [x] Document Kubernetes security defaults, namespaces, secrets, Argo CD ownership, rollout, and rollback.
+- [x] Document incident response and authentication, authorization, billing, and database runbooks.
+- [x] Document test layers, required security cases, and evidence limitations.
+- [x] Add initial ADRs for service boundaries, contract-first design, and fail-closed authorization.
+- [x] Perform documentation consistency and whitespace checks.
+
+## 12. Current expansion requested
+
+- [x] Implement OPA adapter and fail-closed unavailable-evaluator behavior.
+- [ ] Add OPAL policy/data distribution configuration.
+- [ ] Add Argo-managed dependency Applications for Authentik, OPA, OPAL, PostgreSQL, Redis, and Cloudspace workloads.
+- [ ] Add pinned dependency versions and documented upgrade procedure.
+- [x] Add Python SDK with typed models, sync/async clients, errors, examples, and tests.
+- [x] Add TypeScript SDK with typed models, fetch client, errors, examples, and tests.
+- [x] Build a navigable GitHub Pages documentation site with theme, search, diagrams, API/SDK reference, and deployment workflow.
+
+## 13. Expansion verification evidence
+
+- [x] Run platform API and OPA adapter tests: 9 passed.
+- [x] Run Python SDK tests: 2 passed; included in the 11-test combined SDK/API run.
+- [x] Build TypeScript SDK: `npm run build` passed.
+- [x] Run TypeScript SDK tests: 1 passed.
+- [x] Build documentation site with `mkdocs build --strict`.
+- [x] Parse Argo Application YAML documents: 2 multi-document files parsed.
+- [x] Run whitespace validation with `git diff --check`.
+- [ ] Validate Helm charts with Helm: Helm is not installed in this environment.
+- [ ] Reconcile Argo Applications on a live cluster: no Kubernetes/Argo cluster is configured.
+- [ ] Publish GitHub Pages: workflow is committed, but repository Pages settings and the GitHub Actions run require remote repository administration.
+- [ ] Verify upstream chart pins at deployment time; chart versions are intentionally reviewed again during promotion.

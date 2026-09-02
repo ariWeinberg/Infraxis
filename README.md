@@ -29,4 +29,6 @@ Then open the console through Vite (`npm install && npm run dev` in `apps/consol
 ./ci/verify.sh
 ```
 
+The complete documentation index is in [`docs/README.md`](docs/README.md). It includes the contract, authentication, authorization, billing, security, development, deployment, operations, and testing guides.
+
 The repository does not commit real credentials. Authentik OIDC, Stripe, OPAL synchronization, PostgreSQL migrations, image publishing, and live-cluster checks require environment-specific infrastructure and remain explicit checklist items.
