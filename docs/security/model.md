@@ -1,0 +1,3 @@
+# Security model
+
+Authentik is the authentication authority. Production tokens must be validated as OIDC JWTs with issuer, audience, signature, expiry, and rotating JWKS checks. The local `dev-user-*` adapter is development-only and must not be enabled in production. Authorization is fail-closed and tenant context is derived from the validated principal, never trusted from an arbitrary request header. Stripe, database, and internal service credentials are injected as secrets. Kubernetes workloads run non-root with dropped capabilities and service-account token automount disabled where possible.

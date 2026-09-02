@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata: {name: cloudspace-platform-api, namespace: argocd}
+spec:
+  project: default
+  source: {repoURL: https://git.example.invalid/cloudspace/platform.git, targetRevision: main, path: deploy/helm/platform-api}
+  destination: {server: https://kubernetes.default.svc, namespace: cloudspace-system}
+  syncPolicy: {automated: {prune: false, selfHeal: true}}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata: {name: cloudspace-console, namespace: argocd}
+spec:
+  project: default
+  source: {repoURL: https://git.example.invalid/cloudspace/platform.git, targetRevision: main, path: deploy/helm/console}
+  destination: {server: https://kubernetes.default.svc, namespace: cloudspace-system}
+  syncPolicy: {automated: {prune: false, selfHeal: true}}

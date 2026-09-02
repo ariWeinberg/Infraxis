@@ -1,0 +1,11 @@
+services:
+  platform-api:
+    build:
+      context: .
+      dockerfile: apps/platform-api/Dockerfile
+    ports: ["8000:8000"]
+    env_file: [apps/platform-api/.env.example]
+  opa:
+    image: openpolicyagent/opa:0.68.0-static
+    command: ["run", "--server", "/policies"]
+    volumes: ["./policies:/policies:ro"]

@@ -1,0 +1,118 @@
+openapi: 3.1.0
+info:
+  title: Cloudspace Platform API
+  version: 1.0.0
+  description: Cloudspace-owned contracts for shared platform capabilities.
+servers:
+  - url: /
+paths:
+  /health/live:
+    get:
+      operationId: liveness
+      responses:
+        '200': {description: Process is alive}
+  /health/ready:
+    get:
+      operationId: readiness
+      responses:
+        '200': {description: Process can accept traffic}
+  /v1/me:
+    get:
+      operationId: getMe
+      security: [{bearerAuth: []}]
+      responses:
+        '200': {description: Normalized principal, content: {application/json: {schema: {$ref: '#/components/schemas/MeResponse'}}}}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+  /v1/authorization/check:
+    post:
+      operationId: checkAuthorization
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/AuthorizationCheckRequest'}}}
+      responses:
+        '200': {description: Authorization decision, content: {application/json: {schema: {$ref: '#/components/schemas/AuthorizationDecision'}}}}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+  /v1/billing/overview:
+    get:
+      operationId: getBillingOverview
+      security: [{bearerAuth: []}]
+      responses:
+        '200': {description: Billing overview, content: {application/json: {schema: {$ref: '#/components/schemas/BillingOverview'}}}}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  responses:
+    Unauthenticated:
+      description: Authentication is missing or invalid
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}
+  schemas:
+    Principal:
+      type: object
+      required: [id, type, issuer]
+      properties:
+        id: {type: string}
+        type: {type: string, enum: [user, service]}
+        issuer: {type: string, format: uri}
+        tenant_id: {type: [string, 'null']}
+        attributes: {type: object, additionalProperties: true}
+    MeResponse:
+      type: object
+      required: [principal]
+      properties: {principal: {$ref: '#/components/schemas/Principal'}}
+    AuthorizationCheckRequest:
+      type: object
+      required: [principal, action, resource]
+      additionalProperties: false
+      properties:
+        principal: {$ref: '#/components/schemas/Principal'}
+        action: {type: string, pattern: '^[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*$'}
+        resource: {type: string, minLength: 1, maxLength: 512}
+        context: {type: object, additionalProperties: true}
+    AuthorizationDecision:
+      type: object
+      required: [decision, decision_id, reason, policy_revision, obligations]
+      properties:
+        decision: {type: boolean}
+        decision_id: {type: string, pattern: '^dec_'}
+        reason: {type: string}
+        policy_revision: {type: string}
+        obligations: {type: array, items: {type: object, additionalProperties: true}}
+    ProviderReference:
+      type: object
+      required: [type, external_id]
+      properties: {type: {type: string}, external_id: {type: string}}
+    BillingAccount:
+      type: object
+      required: [id, owner_principal_id]
+      properties:
+        id: {type: string, pattern: '^billacct_'}
+        owner_principal_id: {type: string}
+        provider: {anyOf: [{$ref: '#/components/schemas/ProviderReference'}, {type: 'null'}]}
+    Subscription:
+      type: object
+      required: [id, billing_account_id, plan_id, status]
+      properties:
+        id: {type: string, pattern: '^sub_'}
+        billing_account_id: {type: string}
+        plan_id: {type: string, pattern: '^plan_'}
+        status: {type: string}
+        provider: {anyOf: [{$ref: '#/components/schemas/ProviderReference'}, {type: 'null'}]}
+    BillingOverview:
+      type: object
+      required: [account, subscription]
+      properties:
+        account: {anyOf: [{$ref: '#/components/schemas/BillingAccount'}, {type: 'null'}]}
+        subscription: {anyOf: [{$ref: '#/components/schemas/Subscription'}, {type: 'null'}]}
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, request_id]
+          properties:
+            code: {type: string}
+            message: {type: string}
+            request_id: {type: string, pattern: '^req_'}
+            details: {type: object, additionalProperties: true}
